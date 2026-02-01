@@ -1,3 +1,4 @@
+python-dotenv
 pandas
 numpy
 scipy
@@ -6,4 +7,5 @@ psycopg2-binary
 matplotlib
 jupyter
 requests
+
 
