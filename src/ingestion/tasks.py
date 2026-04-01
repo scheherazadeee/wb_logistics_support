@@ -1,42 +1,51 @@
-from config.celery_config import celery_app
-import time
+import json
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict
 
 from config.celery_config import celery_app
+
+RAW_DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "raw"
+RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
 from src.ingestion.wb_reports import (
-    create_warehouse_remains_task,
-    get_warehouse_remains_status,
-    download_warehouse_remains,
+    get_warehouse_remains_report,
+    get_paid_storage_report,
+    get_region_sale,
+    get_goods_return,
 )
 
-@celery_app.task(name="src.ingestion.tasks.generate_warehouse_remains_report",bind=True)
-def generate_warehouse_remains_report(
-    self,
-    poll_interval: int = 10,
-    max_attempts: int = 30,
-    **params,
-) -> Dict[str, Any]:
-    task_id = create_warehouse_remains_task(**params)
-    for attempt in range(1, max_attempts + 1):
-        time.sleep(poll_interval)
-        status = get_warehouse_remains_status(task_id)
-        if status == "done":
-            break
-        if status in ("error", "cancelled"):
-            raise RuntimeError(f"WB status={status}")
-        self.update_state(
-            state="PROGRESS",
-            meta={"attempt": attempt, "status": status},
-        )
-    else:
-        raise TimeoutError("Timeout waiting for WB warehouse report")
 
-    data = download_warehouse_remains(task_id)
-
+@celery_app.task(name="src.ingestion.tasks.generate_warehouse_remains_report")
+def generate_warehouse_remains_report(poll_interval: int = 10, max_attempts: int = 30, **params) -> Dict[str, Any]:
+    data = get_warehouse_remains_report(poll_interval=poll_interval, max_attempts=max_attempts, **params)
     filename = f"warehouse_remains_{datetime.now():%Y%m%d_%H%M%S}.json"
-    with open(filename, "w", encoding="utf-8") as f:
-        import json
+    with open(RAW_DATA_DIR / filename, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False)
+    return {"rows": len(data), "filename": filename}
 
-    return {"task_id": task_id, "rows": len(data), "filename": filename}
+
+@celery_app.task(name="src.ingestion.tasks.generate_paid_storage_report")
+def generate_paid_storage_report(date_from: str, date_to: str, poll_interval: int = 10, max_attempts: int = 30) -> Dict[str, Any]:
+    data = get_paid_storage_report(date_from=date_from, date_to=date_to, poll_interval=poll_interval, max_attempts=max_attempts)
+    filename = f"paid_storage_{datetime.now():%Y%m%d_%H%M%S}.json"
+    with open(RAW_DATA_DIR / filename, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False)
+    return {"rows": len(data), "filename": filename}
+
+
+@celery_app.task(name="src.ingestion.tasks.generate_region_sale_report")
+def generate_region_sale_report(date_from: str, date_to: str, limit: int = 100000, offset: int = 0) -> Dict[str, Any]:
+    data = get_region_sale(date_from=date_from, date_to=date_to, limit=limit, offset=offset)
+    filename = f"region_sale_{datetime.now():%Y%m%d_%H%M%S}.json"
+    with open(RAW_DATA_DIR / filename, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False)
+    return {"rows": len(data), "filename": filename}
+
+
+@celery_app.task(name="src.ingestion.tasks.generate_goods_return_report")
+def generate_goods_return_report(date_from: str, date_to: str, limit: int = 100000, offset: int = 0) -> Dict[str, Any]:
+    data = get_goods_return(date_from=date_from, date_to=date_to, limit=limit, offset=offset)
+    filename = f"goods_return_{datetime.now():%Y%m%d_%H%M%S}.json"
+    with open(RAW_DATA_DIR / filename, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False)
+    return {"rows": len(data), "filename": filename}
