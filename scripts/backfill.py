@@ -15,7 +15,7 @@ def banner(msg):
 
 
 DATE_FROM = "2024-01-01"
-DATE_TO   = "2026-05-09"
+DATE_TO   = "2024-12-31"
 
 
 def step_warehouses():
