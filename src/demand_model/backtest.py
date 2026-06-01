@@ -75,20 +75,20 @@ def backtest(
     evaluate_only_in_stock : whether to filter test rows by stock availability
 
     Returns
-    -------
     per_split : DataFrame with one row per (test_week, nm_id) containing
                 target, prediction, error
     overall : dict of aggregated metrics across all splits
     """
-    
+
     df = features.copy()
     df["week"] = pd.to_datetime(df["week"])
     if splits is None:
         splits = make_splits(df, min_train_weeks, n_splits)
 
+    # Keep nm_id and week — per-SKU models (Holt-Winters etc.) need them
     feature_cols = [c for c in df.columns
-                    if c not in {"nm_id", "week", "sa_name", "subject_name",
-                                  "brand_name", "target_units", "train_mask"}]
+                    if c not in {"sa_name", "subject_name", "brand_name",
+                                  "target_units", "train_mask"}]
 
     results = []
     for test_week in splits:
@@ -104,14 +104,19 @@ def backtest(
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
 
-        for nm_id, target, pred in zip(test["nm_id"].values, y_test.values, y_pred):
-            results.append({
+        has_wh = "warehouse" in test.columns
+        wh_vals = test["warehouse"].values if has_wh else [None] * len(test)
+        for nm_id, wh, target, pred in zip(test["nm_id"].values, wh_vals, y_test.values, y_pred):
+            row = {
                 "test_week": test_week,
                 "nm_id":     nm_id,
                 "target":    target,
                 "prediction": pred,
                 "abs_error": abs(target - pred),
-            })
+            }
+            if has_wh:
+                row["warehouse"] = wh
+            results.append(row)
 
     per_split = pd.DataFrame(results)
     if per_split.empty:
@@ -127,7 +132,7 @@ def compare_models(
     **backtest_kwargs,
 ) -> pd.DataFrame:
     """
-    Run backtest for several models on the same splits, return one row per model.
+    Run backtest for several models on the same splits, return one row per model
     """
     splits = make_splits(
         features,
