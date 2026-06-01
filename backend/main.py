@@ -66,7 +66,7 @@ if _FRONTEND:
 @app.get("/", include_in_schema=False)
 def root():
     if _FRONTEND:
-        html = _FRONTEND / "WB Logistics (1).html"
+        html = _FRONTEND / "WB Logistics.html"
         if html.exists():
             content = html.read_text(encoding="utf-8")
             # Rewrite bare relative paths so they resolve under /static/
