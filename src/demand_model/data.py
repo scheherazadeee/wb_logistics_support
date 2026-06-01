@@ -2,9 +2,6 @@
 Data layer for demand model.
 realization_report + paid_storage превращаем в недельный
 временной ряд (nm_id * week)
-
-get_full_weekly_panel() возвращает полную сетку без
-пропусков тк модель может посчитать что пропуски - 0 продаж
 """
 import os
 from pathlib import Path
@@ -129,3 +126,96 @@ def get_full_weekly_panel() -> pd.DataFrame:
     panel["warehouses_with_stock"] = panel["warehouses_with_stock"].fillna(0).astype(int)
 
     return panel.sort_values(["nm_id", "week"]).reset_index(drop=True) # sort by item then by week - more readable. dropping indecies
+
+
+# warehouse-level panel
+
+def get_warehouse_weekly_demand() -> pd.DataFrame:
+    """Weekly sales aggregated at (nm_id, warehouse, week) granularity."""
+    sql = text("""
+        SELECT
+            nm_id,
+            office_name                                AS warehouse,
+            date_trunc('week', sale_dt)::date          AS week,
+            SUM(quantity)                               AS units,
+            SUM(ppvz_for_pay)                           AS revenue_rub,
+            CASE WHEN SUM(quantity) > 0
+                 THEN SUM(retail_price_withdisc_rub * quantity)::numeric
+                      / NULLIF(SUM(quantity), 0)
+            END                                         AS avg_price,
+            MAX(subject_name) AS subject_name,
+            MAX(brand_name)   AS brand_name,
+            MAX(sa_name)      AS sa_name
+        FROM realization_report
+        WHERE doc_type_name = 'Продажа'
+          AND sale_dt IS NOT NULL
+          AND nm_id > 0
+          AND office_name IS NOT NULL
+        GROUP BY nm_id, office_name, date_trunc('week', sale_dt)
+        HAVING SUM(quantity) > 0
+        ORDER BY nm_id, office_name, week
+    """)
+    return pd.read_sql(sql, ENGINE)
+
+
+def get_warehouse_weekly_stock() -> pd.DataFrame:
+    """Weekly stock availability at (nm_id, warehouse, week) granularity."""
+    sql = text("""
+        SELECT
+            nm_id,
+            warehouse,
+            date_trunc('week', date)::date            AS week,
+            COUNT(DISTINCT date) FILTER (
+                WHERE barcodes_count > 0
+            )                                          AS days_in_stock,
+            AVG(barcodes_count)                        AS avg_stock_qty
+        FROM paid_storage
+        WHERE nm_id > 0
+        GROUP BY nm_id, warehouse, date_trunc('week', date)
+        ORDER BY nm_id, warehouse, week
+    """)
+    return pd.read_sql(sql, ENGINE)
+
+
+def get_full_warehouse_weekly_panel() -> pd.DataFrame:
+    """
+    Complete grid (nm_id × warehouse × week) from the SKU's first sale at that
+    warehouse to the current week, with explicit zeros where there was no
+    activity. Foundation for the direct warehouse-distribution model.
+    """
+    demand = get_warehouse_weekly_demand()
+    stock = get_warehouse_weekly_stock()
+
+    if demand.empty:
+        return demand
+
+    today_week = pd.Timestamp.today().to_period("W-MON").start_time.date()
+
+    panels = []
+    for (nm_id, warehouse), group in demand.groupby(["nm_id", "warehouse"]):
+        first_week = group["week"].min()
+        weeks = pd.date_range(first_week, today_week, freq="W-MON").date
+        meta = group[["subject_name", "brand_name", "sa_name"]].iloc[0].to_dict()
+        panels.append(pd.DataFrame({
+            "nm_id": nm_id,
+            "warehouse": warehouse,
+            "week": weeks,
+            **meta,
+        }))
+    panel = pd.concat(panels, ignore_index=True)
+
+    panel = panel.merge(
+        demand[["nm_id", "warehouse", "week", "units", "revenue_rub", "avg_price"]],
+        on=["nm_id", "warehouse", "week"], how="left"
+    )
+    panel = panel.merge(
+        stock[["nm_id", "warehouse", "week", "days_in_stock", "avg_stock_qty"]],
+        on=["nm_id", "warehouse", "week"], how="left"
+    )
+
+    panel["units"] = panel["units"].fillna(0).astype(int)
+    panel["revenue_rub"] = panel["revenue_rub"].fillna(0).astype(float)
+    panel["days_in_stock"] = panel["days_in_stock"].fillna(0).astype(int)
+    panel["avg_stock_qty"] = panel["avg_stock_qty"].fillna(0).astype(float)
+
+    return panel.sort_values(["nm_id", "warehouse", "week"]).reset_index(drop=True)
