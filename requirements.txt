@@ -1,11 +1,26 @@
-python-dotenv
+# Web backend
+fastapi
+uvicorn[standard]
+pydantic
+
+# Data & DB
 pandas
 numpy
-scipy
 sqlalchemy
 psycopg2-binary
-matplotlib
-jupyter
+python-dotenv
+
+# HTTP
 requests
 
+# LP optimizer
+pulp
 
+# Demand models
+statsmodels
+lightgbm
+optuna
+holidays
+
+# Background tasks (data ingestion pipeline)
+celery
