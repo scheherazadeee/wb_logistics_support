@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>WB Logistics · Оптимизация распределения товаров</title>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- Scroll progress bar -->
+<div class="scroll-progress" id="scroll-progress"></div>
+<!-- Cursor glow (hero section only) -->
+<div class="cursor-glow" id="cursor-glow"></div>
+
+<!-- ══ SIDEBAR ══════════════════════════════════════════════════ -->
+<aside class="sidebar" data-screen-label="Sidebar">
+  <div class="sb-logo" title="WB Logistics">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4"/><path d="M3 17l9 4 9-4"/></svg>
+  </div>
+  <nav class="sb-nav">
+    <button class="sb-btn active" data-sec="hero" type="button">
+      <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+      <span class="sb-tooltip">Дашборд</span>
+    </button>
+    <button class="sb-btn" data-sec="portfolio" type="button">
+      <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="6" cy="6" r="1.2" fill="currentColor"/><circle cx="6" cy="12" r="1.2" fill="currentColor"/><circle cx="6" cy="18" r="1.2" fill="currentColor"/></svg>
+      <span class="sb-tooltip">Портфель SKU</span>
+    </button>
+    <button class="sb-btn" data-sec="map-sec" type="button">
+      <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.5-7-12a7 7 0 1 1 14 0c0 5.5-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>
+      <span class="sb-tooltip">Склады и спрос</span>
+    </button>
+    <button class="sb-btn" data-sec="analyzer" type="button">
+      <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><line x1="16" y1="16" x2="21" y2="21"/></svg>
+      <span class="sb-tooltip">Анализ SKU</span>
+    </button>
+    <button class="sb-btn" data-sec="optimizer" type="button">
+      <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><line x1="12" y1="3" x2="12" y2="7"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="3" y1="12" x2="7" y2="12"/><line x1="17" y1="12" x2="21" y2="12"/></svg>
+      <span class="sb-tooltip">Оптимизатор</span>
+    </button>
+  </nav>
+</aside>
+
+<!-- ══ APP SHELL ════════════════════════════════════════════════ -->
+<div class="app-shell">
+
+  <!-- Top bar -->
+  <header class="topbar" style="border-color: rgba(33, 31, 54, 0)">
+    <div class="topbar-brand"> Оптимизация поставок</div>
+    <div class="topbar-right">
+      <span class="snap-label">снимок данных:</span>
+      <span class="snap-val" id="topbar-snap">—</span>
+    </div>
+  </header>
+
+  <!-- ══ SECTION 1 — DASHBOARD ════════════════════════════════ -->
+  <section id="hero" class="section dash-section" data-screen-label="01 Dashboard">
+    <div class="section-header dash-head anim fade-up">
+      <div class="dh-left">
+        <div class="sec-eyebrow">01 · Live · Wildberries</div>
+        <h2 class="section-title">
+</h2>
+      </div>
+      <div class="dh-right">
+        <div class="dh-meta">
+          <span class="live-dot"></span>
+          <span>live · снимок <b id="dh-snapshot">—</b></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature stats: units (gradient) + critical (white) -->
+    <div class="feature-row">
+      <div class="feat-card feat-grad anim fade-up" data-delay="40">
+        <div class="feat-orb"></div>
+        <div class="feat-top">
+          <span class="feat-label">Единиц на складах</span>
+          <span class="feat-chip" id="units-chip">снимок</span>
+        </div>
+        <div class="feat-val" id="hm-units" style="font-size: 46px">—</div>
+        <div class="feat-sub">текущий остаток по всем складам</div>
+        <div class="feat-spark" data-spark="wave"></div>
+      </div>
+
+      <div class="feat-card feat-white anim fade-up" data-delay="120">
+        <div class="feat-top">
+          <span class="feat-label">Критичных SKU</span>
+          <span class="feat-tag">стокаут &lt; 14 дней</span>
+        </div>
+        <div class="feat-val danger" id="hm-critical">—</div>
+        <div class="feat-mini" id="critical-mini"></div>
+        <div class="feat-foot">
+          <span class="feat-foot-num" id="hm-warning">—</span>
+          <span>на контроле · стокаут 14–30 дней</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sales chart + stock box plot -->
+    <div class="dash-grid">
+      <div class="chart-card anim fade-up" data-delay="220">
+        <div class="cc-head">
+          <div>
+            <div class="card-label">Продажи · WB Realization</div>
+            <div class="cc-sub" id="hero-chart-sub">—</div>
+          </div>
+          <div class="cc-tabs" id="hero-tabs">
+            <button class="cc-tab" data-range="4w">4 нед</button>
+            <button class="cc-tab" data-range="8w">8 нед</button>
+            <button class="cc-tab active" data-range="12w">12 нед</button>
+            <button class="cc-tab" data-range="26w">26 нед</button>
+          </div>
+        </div>
+        <div class="cc-body"><canvas id="hero-chart"></canvas></div>
+      </div>
+
+      <div class="chart-card box-card anim fade-right" data-delay="300">
+        <div class="cc-head">
+          <div>
+            <div class="card-label">Остатки по складам</div>
+            <div class="box-sub">распределение · топ по продажам</div>
+          </div>
+        </div>
+        <div id="stock-boxplot" class="boxplot"></div>
+      </div>
+    </div>
+
+    <!-- Bottom widgets: feed (white) + top warehouses (blur) + categories (white) -->
+    <div class="dash-bottom">
+      <div class="card anim fade-up" data-delay="380">
+        <div class="card-head">
+          <div class="card-label">Лента событий · последние 24ч</div>
+          <span class="feed-pill"><span class="live-dot"></span> live</span>
+        </div>
+        <div id="activity-feed" class="activity-feed"></div>
+      </div>
+      <div class="card card-blur anim fade-up" data-delay="440">
+        <div class="card-label">Топ складов · по остатку</div>
+        <div id="top-wh-list" class="mini-list"></div>
+      </div>
+      <div class="card anim fade-up" data-delay="500">
+        <div class="card-label">Распределение по категориям</div>
+        <div id="cat-bars" class="cat-bars"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ SECTION 2 — PORTFOLIO ═══════════════════════════════ -->
+  <section id="portfolio" class="section" data-screen-label="02 Portfolio">
+    <div class="section-header anim fade-up">
+      <div class="sec-eyebrow">02 · Портфель</div>
+      <h2 class="section-title">Портфель SKU</h2>
+      <p class="section-sub">Все артикулы, отсортированные по риску стокаута</p>
+    </div>
+
+    <div class="two-col">
+      <div class="card anim fade-left" style="flex:2">
+        <div class="card-head">
+          <div class="card-label">Артикулы</div>
+          <input class="card-search" id="sku-search" placeholder="Поиск по названию или ID…" type="text"/>
+        </div>
+        <div class="filter-row" id="portfolio-filters">
+          <button class="filter-btn active" data-status="all">Все <span class="fb-count" id="fb-all">0</span></button>
+          <button class="filter-btn" data-status="critical">Критичные <span class="fb-count danger" id="fb-critical">0</span></button>
+          <button class="filter-btn" data-status="warning">Внимание <span class="fb-count warning" id="fb-warning">0</span></button>
+          <button class="filter-btn" data-status="ok">ОК <span class="fb-count ok" id="fb-ok">0</span></button>
+        </div>
+        <div class="table-wrap table-scroll">
+          <table>
+            <thead><tr><th>Артикул</th><th>Категория</th><th>Остаток</th><th>Складов</th><th>Запас (дн.)</th><th>Статус</th></tr></thead>
+            <tbody id="skus-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card anim fade-right">
+        <div class="card-label">Распределение рисков</div>
+        <div class="donut-wrap">
+          <canvas id="risk-donut"></canvas>
+          <div class="donut-center">
+            <div class="donut-num" id="donut-total">0</div>
+            <div class="donut-cap">всего SKU</div>
+          </div>
+        </div>
+        <div id="risk-legend" class="donut-legend"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ SECTION 3 — MAP ════════════════════════════════════ -->
+  <section id="map-sec" class="section" data-screen-label="03 Map">
+    <div class="section-header anim fade-up">
+      <div class="sec-eyebrow">03 · География</div>
+      <h2 class="section-title">Склады и концентрация спроса</h2>
+      <p class="section-sub">Реальные тарифы WB API · коэффициенты доставки и хранения · покупатели по регионам</p>
+    </div>
+
+    <div class="map-controls anim fade-up" data-delay="100">
+      <div class="layer-toggle">
+        <button class="layer-btn active" id="btn-warehouses" type="button">Склады</button>
+        <button class="layer-btn" id="btn-demand" type="button">Спрос</button>
+        <button class="layer-btn" id="btn-both" type="button">Оба слоя</button>
+      </div>
+      <div class="map-leg" id="map-leg"></div>
+    </div>
+
+    <div class="map-card anim fade-up" data-delay="160">
+      <div id="map" style="color: rgb(200, 200, 200)"></div>
+    </div>
+
+    <div class="card anim fade-up" data-delay="220" style="margin-top:20px">
+      <div class="card-label">Все склады · реальные тарифы из WB API</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Склад</th><th>Округ</th><th>Единиц</th><th>Артикулов</th>
+            <th>Коэф. доставки</th><th>Коэф. хранения</th>
+            <th>Критичных SKU</th><th>Мин. запас (дн.)</th><th>Статус</th>
+          </tr></thead>
+          <tbody id="wh-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ SECTION 4 — ANALYZER ═══════════════════════════════ -->
+  <section id="analyzer" class="section" data-screen-label="04 Analyzer">
+    <div class="section-header anim fade-up">
+      <div class="sec-eyebrow">04 · Анализ</div>
+      <h2 class="section-title">Анализ SKU</h2>
+      <p class="section-sub">Остатки, прогноз стокаутов и история спроса по каждому артикулу</p>
+    </div>
+
+    <div class="card anim fade-up" style="margin-bottom:20px">
+      <div class="form-row">
+        <div class="form-group" style="flex:1">
+          <label>Выберите артикул</label>
+          <select id="sku-select"><option value="">— выберите SKU —</option></select>
+        </div>
+      </div>
+    </div>
+
+    <div id="sku-kpis" class="metrics-row" style="display:none"></div>
+
+    <div class="two-col" id="sku-charts" style="display:none">
+      <div class="card anim fade-left">
+        <div class="card-label">Стокаут-таймлайн по складам</div>
+        <div id="sku-timeline"></div>
+      </div>
+      <div class="card anim fade-right">
+        <div class="card-label">История спроса</div>
+        <div style="height:240px"><canvas id="sku-demand-chart"></canvas></div>
+      </div>
+    </div>
+
+    <div id="sku-table-wrap" style="display:none" class="card anim fade-up">
+      <div class="card-label">Детали по складам</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Склад</th><th>Остаток</th><th>Дата стокаута</th><th>Дней</th><th>Статус</th></tr></thead>
+          <tbody id="sku-detail-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ SECTION 5 — OPTIMIZER ══════════════════════════════ -->
+  <section id="optimizer" class="section" data-screen-label="05 Optimizer" style="padding-bottom:80px">
+    <div class="section-header anim fade-up">
+      <div class="sec-eyebrow">05 · Оптимизатор</div>
+      <h2 class="section-title">Оптимизатор распределения</h2>
+      <p class="section-sub">LP-алгоритм минимизирует затраты и стокауты одновременно</p>
+    </div>
+
+    <div class="card anim fade-up" style="margin-bottom:24px">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Артикул</label>
+          <select id="opt-sku"></select>
+        </div>
+        <div class="form-group">
+          <label>Единиц для отправки</label>
+          <input type="number" id="opt-units" value="500" min="1" step="50"/>
+        </div>
+        <div class="form-group">
+          <label>Горизонт</label>
+          <select id="opt-weeks">
+            <option value="4">4 недели</option>
+            <option value="8" selected>8 недель</option>
+            <option value="12">12 недель</option>
+            <option value="16">16 недель</option>
+          </select>
+        </div>
+        <div class="form-group" style="justify-content:flex-end">
+          <button class="btn-calc magnetic" id="calc-btn" type="button">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20"/></svg>
+            <span>Рассчитать</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="opt-results" style="display:none">
+      <div id="opt-kpis" class="metrics-row" style="margin-bottom:24px"></div>
+
+      <!-- Рекомендуемое распределение — полная ширина сверху -->
+      <div class="card anim fade-up" style="margin-bottom:24px">
+        <div class="card-label">Рекомендуемое распределение</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Склад</th>
+              <th>Отправить</th>
+              <th title="Суммарный прогнозируемый спрос за горизонт">Спрос</th>
+              <th>Хранение</th>
+              <th title="Упущенные продажи = нераспределённый спрос × маржа">Упущ. прод.</th>
+              <th title="Дней до стокаута после получения поставки">Запас после</th>
+              <th title="Критично &lt;14 дн · Внимание 14–30 дн · ОК &gt;30 дн">Риск стокаута</th>
+            </tr></thead>
+            <tbody id="opt-alloc-tbody"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:14px;flex-wrap:wrap">
+          <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted)"><span class="badge critical" style="padding:2px 8px;font-size:10px">Критично</span>запас &lt; 14 дн.</span>
+          <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted)"><span class="badge warning" style="padding:2px 8px;font-size:10px">Внимание</span>14–30 дн.</span>
+          <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted)"><span class="badge ok" style="padding:2px 8px;font-size:10px">ОК</span>&gt; 30 дн.</span>
+        </div>
+      </div>
+
+      <!-- Нижний ряд: график + донат -->
+      <div class="two-col">
+        <div class="card anim fade-left">
+          <div class="card-label">Запас дней до стокаута — до и после отправки</div>
+          <div id="opt-compare-wrap" style="position:relative;height:220px;margin-top:8px">
+            <canvas id="opt-compare-chart"></canvas>
+          </div>
+        </div>
+        <div class="card anim fade-right">
+          <div class="card-label">Затраты по складам</div>
+          <div class="donut-wrap" style="height:200px">
+            <canvas id="opt-cost-donut"></canvas>
+            <div class="donut-center">
+              <div class="donut-num" id="opt-cost-total" style="font-size:18px">—</div>
+              <div class="donut-cap">итого ₽</div>
+            </div>
+          </div>
+          <div id="opt-cost-legend" class="donut-legend" style="margin-top:12px"></div>
+          <div id="opt-cost-bars" style="display:none"></div>
+        </div>
+      </div>
+
+      <!-- скрытые div-ы для совместимости JS -->
+      <div style="display:none">
+        <div id="opt-tl-current"></div>
+        <div id="opt-tl-proposed"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="ft-left">WB Logistics · Система поддержки решений</div>
+    <div class="ft-right">© 2026 · Курсовая работа · v1.4</div>
+  </footer>
+
+</div><!-- /app-shell -->
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
